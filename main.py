@@ -1,12 +1,13 @@
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import socket
 
 app = Flask(__name__)
 CORS(app)
 
 # Token fornecido pelo Melhor Envio
-MELHOR_ENVIO_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiMDgyM2ZlZDYzNzNlODEyMzlhODcyZmNhMmQ4NDU3NjVlNDdiZjg4ZmE0OWY3NDUzMmJiYmY4OTM1ZjUwZTBhZDFmY2Q1ZDA4ODAzMzM2N2QiLCJpYXQiOjE3NDc1MjAwNzUuMzg4Mzg5LCJuYmYiOjE3NDc1MjAwNzUuMzg4MzkxLCJleHAiOjE3NzkwNTYwNzUuMzgxODcsInN1YiI6IjllZWY5ODYwLTlhZGQtNDIyOS04NmQ1LWEzMTYzMmMzNzk0ZSIsInNjb3BlcyI6WyJjYXJ0LXJlYWQiLCJjYXJ0LXdyaXRlIiwiY29tcGFuaWVzLXJlYWQiLCJjb21wYW5pZXMtd3JpdGUiLCJjb3Vwb25zLXJlYWQiLCJjb3Vwb25zLXdyaXRlIiwibm90aWZpY2F0aW9ucy1yZWFkIiwib3JkZXJzLXJlYWQiLCJwcm9kdWN0cy1yZWFkIiwicHJvZHVjdHMtZGVzdHJveSIsInByb2R1Y3RzLXdyaXRlIiwicHVyY2hhc2VzLXJlYWQiLCJzaGlwcGluZy1jYWxjdWxhdGUiLCJzaGlwcGluZy1jYW5jZWwiLCJzaGlwcGluZy1jaGVja291dCIsInNoaXBwaW5nLWNvbXBhbmllcyIsInNoaXBwaW5nLWdlbmVyYXRlIiwic2hpcHBpbmctcHJldmlldyIsInNoaXBwaW5nLXByaW50Iiwic2hpcHBpbmctc2hhcmUiLCJzaGlwcGluZy10cmFja2luZyIsImVjb21tZXJjZS1zaGlwcGluZyIsInRyYW5zYWN0aW9ucy1yZWFkIiwidXNlcnMtcmVhZCIsInVzZXJzLXdyaXRlIiwid2ViaG9va3MtcmVhZCIsIndlYmhvb2tzLXdyaXRlIiwid2ViaG9va3MtZGVsZXRlIiwidGRlYWxlci13ZWJob29rIl19.Owhl-VluX6MBjLLsXfonMrPvxRWj8RK4xCmX_NOiQtgfE3QJb1SSVZ8w_KlLL8PcDjhD-Ko4MHfExUMXe5MY0Na-3GLzFjaNVGrCnXROoRozinPWKNbccnL1zSdfJ_DdqnkwKhQqRqEEj4p64FDdoxovuedzqjz7f9woEaf6BX53lQBYOxW7CmYap9y6Nb1K2IrasAunA5ddc0hB9vWfLJKXcAMCJ6HZBfiz1MOkQ7MUA1ax5PrEzNeqs907K30AiTBlERe5C4Ty0fDFsE0MvK3N8HcJZXXFYsjKYFULHKhtcl_eMADO1smkPB6e1pnRnmc86t8epcag1auMmBzh2KfKTURw4Cx3X_TxtNTp5flOgTaqZd8RsVfI6iko0iZZQRPk6zDT0Fa3VthjnoeAxUFxhS7humPLZ5VzrtL7QTCHW2AWC6oMPBQ-YDJj8_tY485KaRB-gG28ELZb-uPaXNhgaweRLNLa1OCi0yeCMBu1ViCcsAyfqrs2s7aRgvUfEi5nQQ42H54LF5G3BLTOOcKhg0pbVKG16lWtuZCY77dn6nirAcdXJLVpPahEJnNkKn1jDJIwxMBO7lO1mQDyPOq21U4cZ_YcW5W35jqxiS5PWHtpicEh7KaWBMrsXzDEeQXyIJTDkCiowhd8flTSpMPOwMTr9mmXlkAynXuvz1U"  # Substitua aqui pelo seu token real
+MELHOR_ENVIO_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiNWVjNWUwZGYzZmJiZDIwOTc1ZjljNTVkNzlhNWVlMDVmZGU2YjM5YTliZTU1NGNiYWI1YTNjMjYwNjBlMjRlZTMyOTFiMWEwYzZkYmRkMGIiLCJpYXQiOjE3NDc1MjIxODUuNzM5MjYsIm5iZiI6MTc0NzUyMjE4NS43MzkyNjIsImV4cCI6MTc3OTA1ODE4NS43Mjc2NDEsInN1YiI6IjllZWY5ODYwLTlhZGQtNDIyOS04NmQ1LWEzMTYzMmMzNzk0ZSIsInNjb3BlcyI6WyJjYXJ0LXJlYWQiLCJjYXJ0LXdyaXRlIiwiY29tcGFuaWVzLXJlYWQiLCJjb21wYW5pZXMtd3JpdGUiLCJjb3Vwb25zLXJlYWQiLCJjb3Vwb25zLXdyaXRlIiwibm90aWZpY2F0aW9ucy1yZWFkIiwib3JkZXJzLXJlYWQiLCJwcm9kdWN0cy1yZWFkIiwicHJvZHVjdHMtZGVzdHJveSIsInByb2R1Y3RzLXdyaXRlIiwicHVyY2hhc2VzLXJlYWQiLCJzaGlwcGluZy1jYWxjdWxhdGUiLCJzaGlwcGluZy1jYW5jZWwiLCJzaGlwcGluZy1jaGVja291dCIsInNoaXBwaW5nLWNvbXBhbmllcyIsInNoaXBwaW5nLWdlbmVyYXRlIiwic2hpcHBpbmctcHJldmlldyIsInNoaXBwaW5nLXByaW50Iiwic2hpcHBpbmctc2hhcmUiLCJzaGlwcGluZy10cmFja2luZyIsImVjb21tZXJjZS1zaGlwcGluZyIsInRyYW5zYWN0aW9ucy1yZWFkIiwidXNlcnMtcmVhZCIsInVzZXJzLXdyaXRlIiwid2ViaG9va3MtcmVhZCIsIndlYmhvb2tzLXdyaXRlIiwid2ViaG9va3MtZGVsZXRlIiwidGRlYWxlci13ZWJob29rIl19.RcxrcrNL7qlkxNZtldg3sDBSlx2pj8vHhFEf1tGA5ODzPYNMqyPcnsOPVigplwEiWxZ4y2B69IBvqJG_WYTpfH1_5CVVhKqgyyAmnmwv4qUMgsGoH5EedpYBB5IF3C18_mpCYFISX3LLWwi4m-4Nzy_fxxnSmDLulyG5KUzAIlv_trStkxoqwII_2xRUbPQ0Dc_Ly4kzY1C8nE85SABVytVR5GaTSrfMPzVSZJ9L9YKUUA7pi7DVAHwCkLc2ugYyctSKA2CJQ2zv0Oho2ndqTxiIgVzlJz8SWzmFSpXtYz0zWnpWgSIj74yZKI9W28xp0YYSXVuN6FydbPnLVjjfz296rW4OoB72csD5jRtCSlO2vBBuX5d3y5swJkUgWD2x4mFCnwL5Y62H-vcA6D9AkLidKSLdstY4hA0VNgRazwi535a3HktyQlf8HiBapDLKvzKEisc7yzrUB71SbEj6sArN-iL8WYs5QRWkkyPSQENykCgGLPTGX5b-G9pibVUgBCMbLaeZSRWTa2hfuu-zCEHqu6LBdX77yMG8Nszi7Hi0JhZiLB532f_M0geEYk9JVo4kmsKb1EeCoh-rjcZjyfZU8m1SCk_EDrefAg2jSkWfH-VGs7jBLw0ZbYz3L3sYb1GG-E2PieigPU3s25nc9T_xo1ZeoxJE_dl8BO2tJk4"  # Substitua aqui pelo seu token real
 
 # Dados fixos
 SHIPMENT_DATA = {
@@ -36,6 +37,16 @@ ADDITIONAL_FEE = 7.0
 def index():
     return "API de frete com Melhor Envio está ativa."
 
+# Rota para testar a conectividade
+@app.route('/teste-conexao')
+def teste_conexao():
+    try:
+        # Verificar resolução de DNS
+        ip = socket.gethostbyname("api.melhorenvio.com.br")
+        return jsonify({"status": "Conectividade OK", "ip": ip})
+    except Exception as e:
+        return jsonify({"erro": f"Erro de DNS ou conectividade: {str(e)}"}), 500
+
 @app.route('/calcular-frete', methods=['POST'])
 def calcular_frete():
     data = request.json
@@ -57,7 +68,8 @@ def calcular_frete():
         response = requests.post(
             "https://api.melhorenvio.com.br/api/v2/me/shipment/calculate",
             json=payload,
-            headers=headers
+            headers=headers,
+            timeout=10  # Timeout de 10 segundos
         )
 
         if response.status_code != 200:
@@ -85,6 +97,8 @@ def calcular_frete():
             "prazo": f"{prazo} dias úteis"
         })
 
+    except requests.exceptions.RequestException as e:
+        return jsonify({"erro": f"Erro na requisição: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
 
