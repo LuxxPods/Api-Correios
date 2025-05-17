@@ -4,14 +4,22 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# Configurações da API dos Correios
-CORREIOS_API_URL = "https://api.correios.com.br/v1/calcular"
-DEFAULT_WEIGHT = 1.0  # Peso padrão em kg
-DEFAULT_LENGTH = 20  # Comprimento em cm
-DEFAULT_HEIGHT = 10  # Altura em cm
-DEFAULT_WIDTH = 15  # Largura em cm
-DEFAULT_SERVICE = "04510"  # PAC
+# URL do serviço SOAP dos Correios
+CORREIOS_API_URL = "http://ws.correios.com.br/calculador/CalcPrecoPrazo.asmx"
 ADDITIONAL_FEE = 7.0
+
+# Parâmetros padrão
+SERVICE_CODE = "04510"  # PAC
+SOURCE_ZIPCODE = "01001-000"  # CEP de origem padrão
+WEIGHT = "1"
+FORMAT = "1"  # Formato caixa/pacote
+LENGTH = "20"
+HEIGHT = "10"
+WIDTH = "15"
+DIAMETER = "0"
+MAO_PROPRIA = "N"
+VALOR_DECLARADO = "0"
+AVISO_RECEBIMENTO = "N"
 
 @app.route('/')
 def index():
@@ -25,29 +33,51 @@ def calcular_frete():
     if not cep_destino:
         return jsonify({"error": "CEP é obrigatório."}), 400
 
-    payload = {
-        "peso": DEFAULT_WEIGHT,
-        "comprimento": DEFAULT_LENGTH,
-        "altura": DEFAULT_HEIGHT,
-        "largura": DEFAULT_WIDTH,
-        "servico": DEFAULT_SERVICE,
-        "cep_destino": cep_destino
+    # Montando a requisição SOAP
+    soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
+    <soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+      <soap12:Body>
+        <CalcPrecoPrazo xmlns="http://tempuri.org/">
+          <nCdEmpresa></nCdEmpresa>
+          <sDsSenha></sDsSenha>
+          <nCdServico>{SERVICE_CODE}</nCdServico>
+          <sCepOrigem>{SOURCE_ZIPCODE}</sCepOrigem>
+          <sCepDestino>{cep_destino}</sCepDestino>
+          <nVlPeso>{WEIGHT}</nVlPeso>
+          <nCdFormato>{FORMAT}</nCdFormato>
+          <nVlComprimento>{LENGTH}</nVlComprimento>
+          <nVlAltura>{HEIGHT}</nVlAltura>
+          <nVlLargura>{WIDTH}</nVlLargura>
+          <nVlDiametro>{DIAMETER}</nVlDiametro>
+          <sCdMaoPropria>{MAO_PROPRIA}</sCdMaoPropria>
+          <nVlValorDeclarado>{VALOR_DECLARADO}</nVlValorDeclarado>
+          <sCdAvisoRecebimento>{AVISO_RECEBIMENTO}</sCdAvisoRecebimento>
+        </CalcPrecoPrazo>
+      </soap12:Body>
+    </soap12:Envelope>"""
+
+    headers = {
+        "Content-Type": "application/soap+xml; charset=utf-8"
     }
 
     try:
-        response = requests.post(CORREIOS_API_URL, json=payload)
-        response_data = response.json()
+        response = requests.post(CORREIOS_API_URL, data=soap_envelope, headers=headers)
+        if response.status_code != 200:
+            return jsonify({"error": "Erro na requisição aos Correios."}), 500
 
-        if response.status_code != 200 or "valor" not in response_data:
+        # Processando a resposta
+        response_text = response.text
+        if "<Valor>" not in response_text or "<PrazoEntrega>" not in response_text:
             return jsonify({"error": "Erro ao calcular o frete."}), 500
 
-        valor_correios = float(response_data["valor"])
-        prazo_correios = response_data["prazo"]
-        valor_final = valor_correios + ADDITIONAL_FEE
+        # Extraindo os valores
+        valor = float(response_text.split("<Valor>")[1].split("</Valor>")[0].replace(",", "."))
+        prazo = int(response_text.split("<PrazoEntrega>")[1].split("</PrazoEntrega>")[0])
+        valor_final = valor + ADDITIONAL_FEE
 
         return jsonify({
             "valor": valor_final,
-            "prazo": prazo_correios
+            "prazo": prazo
         })
 
     except Exception as e:
