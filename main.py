@@ -13,6 +13,11 @@ DEFAULT_WIDTH = 15  # Largura em cm
 DEFAULT_SERVICE = "04510"  # PAC
 ADDITIONAL_FEE = 7.0
 
+@app.route('/')
+def index():
+    return "API de cálculo de frete está ativa."
+
+
 @app.route('/calcular-frete', methods=['POST'])
 def calcular_frete():
     data = request.json
