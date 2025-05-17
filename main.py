@@ -12,7 +12,7 @@ FIXED_PARAMS = {
     "nCdEmpresa": "",
     "sDsSenha": "",
     "nCdServico": "04510",  # PAC
-    "sCepOrigem": "01001-000",  # CEP fixo da empresa
+    "sCepOrigem": "03057-970",  # CEP fixo da empresa
     "nVlPeso": "1",
     "nCdFormato": "1",
     "nVlComprimento": "20",
