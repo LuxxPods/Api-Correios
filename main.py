@@ -1,29 +1,36 @@
-import os
 import requests
 from flask import Flask, request, jsonify
+import xml.etree.ElementTree as ET
 
 app = Flask(__name__)
 
-# URL do serviço SOAP dos Correios
-CORREIOS_API_URL = "http://ws.correios.com.br/calculador/CalcPrecoPrazo.asmx"
-ADDITIONAL_FEE = 7.0
+# URL da API dos Correios (GET)
+CORREIOS_API_URL = "http://ws.correios.com.br/calculador/CalcPrecoPrazo.aspx"
 
-# Parâmetros padrão
-SERVICE_CODE = "04510"  # PAC
-SOURCE_ZIPCODE = "01001-000"  # CEP de origem padrão
-WEIGHT = "1"
-FORMAT = "1"  # Formato caixa/pacote
-LENGTH = "20"
-HEIGHT = "10"
-WIDTH = "15"
-DIAMETER = "0"
-MAO_PROPRIA = "N"
-VALOR_DECLARADO = "0"
-AVISO_RECEBIMENTO = "N"
+# Configurações fixas do envio
+FIXED_PARAMS = {
+    "nCdEmpresa": "",
+    "sDsSenha": "",
+    "nCdServico": "04510",  # PAC
+    "sCepOrigem": "01001-000",  # CEP fixo da empresa
+    "nVlPeso": "1",
+    "nCdFormato": "1",
+    "nVlComprimento": "20",
+    "nVlAltura": "10",
+    "nVlLargura": "15",
+    "nVlDiametro": "0",
+    "sCdMaoPropria": "N",
+    "nVlValorDeclarado": "0",
+    "sCdAvisoRecebimento": "N",
+    "StrRetorno": "xml"
+}
+
+# Taxa adicional fixa da empresa
+ADDITIONAL_FEE = 7.0
 
 @app.route('/')
 def index():
-    return "API de cálculo de frete está ativa."
+    return "API de frete está ativa para integração com BOTCONVERSA."
 
 @app.route('/calcular-frete', methods=['POST'])
 def calcular_frete():
@@ -31,57 +38,33 @@ def calcular_frete():
     cep_destino = data.get("cep")
 
     if not cep_destino:
-        return jsonify({"error": "CEP é obrigatório."}), 400
+        return jsonify({"erro": "Por favor, informe o CEP de destino."}), 400
 
-    # Montando a requisição SOAP
-    soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
-    <soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
-      <soap12:Body>
-        <CalcPrecoPrazo xmlns="http://tempuri.org/">
-          <nCdEmpresa></nCdEmpresa>
-          <sDsSenha></sDsSenha>
-          <nCdServico>{SERVICE_CODE}</nCdServico>
-          <sCepOrigem>{SOURCE_ZIPCODE}</sCepOrigem>
-          <sCepDestino>{cep_destino}</sCepDestino>
-          <nVlPeso>{WEIGHT}</nVlPeso>
-          <nCdFormato>{FORMAT}</nCdFormato>
-          <nVlComprimento>{LENGTH}</nVlComprimento>
-          <nVlAltura>{HEIGHT}</nVlAltura>
-          <nVlLargura>{WIDTH}</nVlLargura>
-          <nVlDiametro>{DIAMETER}</nVlDiametro>
-          <sCdMaoPropria>{MAO_PROPRIA}</sCdMaoPropria>
-          <nVlValorDeclarado>{VALOR_DECLARADO}</nVlValorDeclarado>
-          <sCdAvisoRecebimento>{AVISO_RECEBIMENTO}</sCdAvisoRecebimento>
-        </CalcPrecoPrazo>
-      </soap12:Body>
-    </soap12:Envelope>"""
-
-    headers = {
-        "Content-Type": "application/soap+xml; charset=utf-8"
-    }
+    params = FIXED_PARAMS.copy()
+    params["sCepDestino"] = cep_destino
 
     try:
-        response = requests.post(CORREIOS_API_URL, data=soap_envelope, headers=headers)
+        response = requests.get(CORREIOS_API_URL, params=params)
         if response.status_code != 200:
-            return jsonify({"error": "Erro na requisição aos Correios."}), 500
+            return jsonify({"erro": "Erro ao consultar os Correios. Tente novamente."}), 500
 
-        # Processando a resposta
-        response_text = response.text
-        if "<Valor>" not in response_text or "<PrazoEntrega>" not in response_text:
-            return jsonify({"error": "Erro ao calcular o frete."}), 500
+        root = ET.fromstring(response.content)
+        servico = root.find("cServico")
 
-        # Extraindo os valores
-        valor = float(response_text.split("<Valor>")[1].split("</Valor>")[0].replace(",", "."))
-        prazo = int(response_text.split("<PrazoEntrega>")[1].split("</PrazoEntrega>")[0])
-        valor_final = valor + ADDITIONAL_FEE
+        if servico.find("Erro").text != "0":
+            return jsonify({"erro": "CEP inválido ou fora da área de cobertura."}), 400
+
+        valor = float(servico.find("Valor").text.replace(",", "."))
+        prazo = int(servico.find("PrazoEntrega").text)
+        valor_final = round(valor + ADDITIONAL_FEE, 2)
 
         return jsonify({
-            "valor": valor_final,
-            "prazo": prazo
+            "frete": f"R$ {valor_final:.2f}",
+            "prazo": f"{prazo} dias úteis"
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0")
+    app.run(host="0.0.0.0", port=5000)
