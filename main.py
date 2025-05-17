@@ -17,7 +17,6 @@ ADDITIONAL_FEE = 7.0
 def index():
     return "API de cálculo de frete está ativa."
 
-
 @app.route('/calcular-frete', methods=['POST'])
 def calcular_frete():
     data = request.json
@@ -55,5 +54,4 @@ def calcular_frete():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0")
